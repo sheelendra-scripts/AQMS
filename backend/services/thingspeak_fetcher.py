@@ -16,6 +16,7 @@ from sqlalchemy import select, desc
 
 from services.database import async_session, SensorReading, init_db
 from utils.aqi_calc import calculate_aqi, get_aqi_category
+from ml.predictor import detect_source as _detect_source
 
 logger = logging.getLogger("aqms.fetcher")
 
@@ -65,6 +66,7 @@ def _generate_demo_reading(ts: Optional[datetime] = None) -> dict:
         "aqi": aqi,
         "aqi_category": cat["category"],
         "aqi_color": cat["color"],
+        "source_detected": "unknown",
         "ward_id": "ward_01",
         "demo": True,
     }
@@ -124,6 +126,15 @@ async def fetch_latest_from_thingspeak() -> Optional[dict]:
                         aqi = aqi_raw if aqi_raw > 0 else calculate_aqi(pm25, co, no2)
                         category_info = get_aqi_category(aqi)
 
+                        try:
+                            from datetime import datetime as _dt
+                            _hour = _dt.now(timezone.utc).hour + _dt.now(timezone.utc).minute / 60.0
+                            _src = _detect_source(pm25=pm25, co=co, no2=no2, tvoc=tvoc,
+                                                  temperature=temperature, humidity=humidity, hour=_hour)
+                            source_detected = _src.get("source", "unknown")
+                        except Exception:
+                            source_detected = "unknown"
+
                         reading = {
                             "timestamp": data["created_at"],
                             "temperature": round(temperature, 1),
@@ -135,6 +146,7 @@ async def fetch_latest_from_thingspeak() -> Optional[dict]:
                             "aqi": aqi,
                             "aqi_category": category_info["category"],
                             "aqi_color": category_info["color"],
+                            "source_detected": source_detected,
                             "ward_id": "ward_01",
                             "demo": False,
                         }
@@ -149,6 +161,15 @@ async def fetch_latest_from_thingspeak() -> Optional[dict]:
     # Demo fallback
     if use_demo or DEMO_MODE == "auto":
         reading = _generate_demo_reading()
+        try:
+            from datetime import datetime as _dt
+            _hour = _dt.now(timezone.utc).hour + _dt.now(timezone.utc).minute / 60.0
+            _src = _detect_source(pm25=reading["pm25"], co=reading["co"], no2=reading["no2"],
+                                  tvoc=reading["tvoc"], temperature=reading["temperature"],
+                                  humidity=reading["humidity"], hour=_hour)
+            reading["source_detected"] = _src.get("source", "unknown")
+        except Exception:
+            reading["source_detected"] = "unknown"
         _latest_reading = reading
         return reading
 
