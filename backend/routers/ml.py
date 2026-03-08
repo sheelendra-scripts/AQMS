@@ -7,10 +7,19 @@ from services.thingspeak_fetcher import get_cached_latest
 
 router = APIRouter(prefix="/api/ml", tags=["ml"])
 
+# 60-second in-memory cache for ML source result
+_source_cache: dict = {"result": None, "at": 0.0}
+
 
 @router.get("/source")
 async def get_source_detection():
     """Classify the current pollution source using the Random Forest model."""
+    import time
+    now = time.monotonic()
+    # Return cached result if fresh (within 60 s)
+    if _source_cache["result"] and now - _source_cache["at"] < 60:
+        return _source_cache["result"]
+
     reading = await get_cached_latest()
     if not reading:
         return {"error": "No live data available"}
@@ -32,6 +41,8 @@ async def get_source_detection():
         "no2": reading.get("no2"),
         "tvoc": reading.get("tvoc"),
     }
+    _source_cache["result"] = result
+    _source_cache["at"] = now
     return result
 
 

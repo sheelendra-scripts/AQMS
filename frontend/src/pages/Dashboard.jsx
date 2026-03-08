@@ -23,6 +23,13 @@ export default function Dashboard() {
   const [mlSource, setMlSource] = useState(null);
   const [mlForecast, setMlForecast] = useState(null);
 
+  // Pre-seed from live data immediately so UI doesn't show "Loading..."
+  useEffect(() => {
+    if (data?.source_detected && !mlSource) {
+      setMlSource({ source: data.source_detected, confidence: null, probabilities: {} });
+    }
+  }, [data]);
+
   useEffect(() => {
     fetchMLSource().then(setMlSource).catch(() => {});
     fetchMLForecast(6).then(setMlForecast).catch(() => {});
