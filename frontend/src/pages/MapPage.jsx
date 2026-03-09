@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MapPin, RefreshCw, Wind, Flame, CloudRain, Thermometer,
-  Droplets, Atom, AlertTriangle, ChevronRight, X, Layers
+  Droplets, Atom, ChevronRight, X, Layers, Search, Grid3X3, Map as MapIcon
 } from 'lucide-react';
 import WardMap from '../components/WardMap';
 import { fetchWards } from '../services/api';
@@ -44,7 +44,6 @@ function WardDetailPanel({ ward, onClose }) {
         </button>
       </div>
 
-      {/* AQI hero */}
       <div className="ward-aqi-hero" style={{ '--aqi-color': ward.aqi_color }}>
         <div className="ward-aqi-value">{ward.aqi}</div>
         <div className="ward-aqi-label">AQI</div>
@@ -56,7 +55,6 @@ function WardDetailPanel({ ward, onClose }) {
         </div>
       </div>
 
-      {/* Source detection */}
       {ward.source_detected && (
         <div className="ward-source-badge">
           <span style={{ fontSize: '1.2rem' }}>{SOURCE_ICONS[ward.source_detected] || '❓'}</span>
@@ -71,7 +69,6 @@ function WardDetailPanel({ ward, onClose }) {
         </div>
       )}
 
-      {/* Metrics grid */}
       <div className="ward-metrics-mini">
         {metrics.map(({ label, value, unit, icon: Icon, color }) => (
           <div key={label} className="ward-metric-item">
@@ -113,6 +110,8 @@ export default function MapPage() {
   const [loading, setLoading] = useState(true);
   const [selectedWard, setSelectedWard] = useState(null);
   const [showList, setShowList] = useState(true);
+  const [viewMode, setViewMode] = useState('wards'); // 'zones' | 'wards'
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadWards = useCallback(async () => {
     try {
@@ -131,14 +130,27 @@ export default function MapPage() {
     return () => clearInterval(interval);
   }, [loadWards]);
 
+  // Split data into zones and wards
+  const zoneData = useMemo(() => wards.filter(w => w.feature_type === 'zone'), [wards]);
+  const wardOnlyData = useMemo(() => wards.filter(w => w.feature_type === 'ward'), [wards]);
+
+  // Currently visible list items
+  const listItems = useMemo(() => {
+    const items = viewMode === 'zones' ? zoneData : wardOnlyData;
+    const filtered = searchQuery
+      ? items.filter(w =>
+          w.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          w.zone.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      : items;
+    return [...filtered].sort((a, b) => b.aqi - a.aqi);
+  }, [viewMode, zoneData, wardOnlyData, searchQuery]);
+
   const selectedWardData = wards.find(w => w.ward_id === selectedWard);
 
-  // Sort wards by AQI (worst first)
-  const sortedWards = [...wards].sort((a, b) => b.aqi - a.aqi);
-
-  // City-wide averages
-  const cityAqi = wards.length
-    ? Math.round(wards.reduce((s, w) => s + w.aqi, 0) / wards.length)
+  // City-wide averages (from wards only)
+  const cityAqi = wardOnlyData.length
+    ? Math.round(wardOnlyData.reduce((s, w) => s + w.aqi, 0) / wardOnlyData.length)
     : 0;
 
   return (
@@ -153,37 +165,48 @@ export default function MapPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h2>Ward-Wise AQI Map</h2>
-            <p>Interactive heatmap of air quality across 12 city wards</p>
+            <p>Interactive heatmap — {wardOnlyData.length} wards across {zoneData.length} MCD zones</p>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              className="map-btn"
-              onClick={() => setShowList(!showList)}
-            >
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {/* View mode toggle */}
+            <div className="map-view-toggle">
+              <button
+                className={`map-toggle-btn ${viewMode === 'zones' ? 'active' : ''}`}
+                onClick={() => { setViewMode('zones'); setSelectedWard(null); }}
+              >
+                <Grid3X3 size={13} /> Zones
+              </button>
+              <button
+                className={`map-toggle-btn ${viewMode === 'wards' ? 'active' : ''}`}
+                onClick={() => { setViewMode('wards'); setSelectedWard(null); }}
+              >
+                <MapIcon size={13} /> Wards
+              </button>
+            </div>
+            <button className="map-btn" onClick={() => setShowList(!showList)}>
               <Layers size={14} />
-              {showList ? 'Hide List' : 'Show List'}
+              {showList ? 'Hide' : 'List'}
             </button>
             <button className="map-btn" onClick={loadWards}>
               <RefreshCw size={14} />
-              Refresh
             </button>
           </div>
         </div>
 
         {/* City summary bar */}
-        {wards.length > 0 && (
+        {wardOnlyData.length > 0 && (
           <div className="city-summary-bar">
             <div className="city-aqi">
-              <span className="city-aqi-dot" style={{ background: wards.length ? getAqiColor(cityAqi) : '#ccc' }} />
-              City Average AQI: <strong>{cityAqi}</strong>
+              <span className="city-aqi-dot" style={{ background: getAqiColor(cityAqi) }} />
+              City Avg AQI: <strong>{cityAqi}</strong>
             </div>
             <div className="city-stats">
-              <span>🟢 {wards.filter(w => w.aqi <= 100).length} Good</span>
-              <span>🟡 {wards.filter(w => w.aqi > 100 && w.aqi <= 200).length} Moderate</span>
-              <span>🔴 {wards.filter(w => w.aqi > 200).length} Poor+</span>
+              <span>🟢 {wardOnlyData.filter(w => w.aqi <= 100).length} Good</span>
+              <span>🟡 {wardOnlyData.filter(w => w.aqi > 100 && w.aqi <= 200).length} Moderate</span>
+              <span>🔴 {wardOnlyData.filter(w => w.aqi > 200).length} Poor+</span>
             </div>
             <div className="city-wards-count">
-              <MapPin size={12} /> {wards.length} Wards
+              <MapPin size={12} /> {wardOnlyData.length} Wards · {zoneData.length} Zones
             </div>
           </div>
         )}
@@ -191,7 +214,7 @@ export default function MapPage() {
 
       {/* Main map area */}
       <div className="map-layout">
-        {/* Ward list sidebar */}
+        {/* Sidebar */}
         <AnimatePresence>
           {showList && (
             <motion.div
@@ -202,16 +225,34 @@ export default function MapPage() {
               transition={{ duration: 0.3 }}
             >
               <div className="ward-list-header">
-                <span>All Wards</span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--earth-400)' }}>Sorted by AQI ↓</span>
+                <span>{viewMode === 'zones' ? 'Zones' : 'All Wards'} ({listItems.length})</span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--earth-400)' }}>by AQI ↓</span>
               </div>
+
+              {/* Search */}
+              {viewMode === 'wards' && (
+                <div className="ward-search-box">
+                  <Search size={14} style={{ color: 'var(--earth-400)', flexShrink: 0 }} />
+                  <input
+                    type="text"
+                    placeholder="Search ward or zone..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                  />
+                </div>
+              )}
+
               <div className="ward-list-scroll">
                 {loading ? (
                   <div style={{ padding: 32, textAlign: 'center', color: 'var(--earth-400)' }}>
-                    Loading wards...
+                    Loading...
+                  </div>
+                ) : listItems.length === 0 ? (
+                  <div style={{ padding: 32, textAlign: 'center', color: 'var(--earth-400)', fontSize: '0.85rem' }}>
+                    No results
                   </div>
                 ) : (
-                  sortedWards.map(ward => (
+                  listItems.map(ward => (
                     <WardListItem
                       key={ward.ward_id}
                       ward={ward}
@@ -241,10 +282,10 @@ export default function MapPage() {
               wardData={wards}
               selectedWard={selectedWard}
               onSelectWard={setSelectedWard}
+              viewMode={viewMode}
             />
           )}
 
-          {/* Detail panel overlay */}
           <AnimatePresence>
             {selectedWardData && (
               <WardDetailPanel

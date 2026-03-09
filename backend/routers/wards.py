@@ -147,14 +147,14 @@ for zone_name, zdef in ZONE_DEFS.items():
             "feature_type": "ward",
         })
 
-# Pollution profiles
+# Pollution profiles — Delhi-realistic high AQI (typical winter readings 150-350+)
 PROFILES = {
-    "clean":        {"pm25_base": 25,  "co_base": 0.8, "no2_base": 0.03, "tvoc_base": 0.15, "source": None},
-    "vehicle":      {"pm25_base": 65,  "co_base": 2.5, "no2_base": 0.08, "tvoc_base": 0.25, "source": "vehicle"},
-    "industrial":   {"pm25_base": 90,  "co_base": 3.2, "no2_base": 0.12, "tvoc_base": 0.55, "source": "industrial"},
-    "construction": {"pm25_base": 110, "co_base": 1.5, "no2_base": 0.04, "tvoc_base": 0.80, "source": "construction"},
-    "biomass":      {"pm25_base": 80,  "co_base": 4.0, "no2_base": 0.05, "tvoc_base": 0.70, "source": "biomass"},
-    "mixed":        {"pm25_base": 50,  "co_base": 1.6, "no2_base": 0.06, "tvoc_base": 0.30, "source": "vehicle"},
+    "clean":        {"pm25_base": 90,  "co_base": 2.0, "no2_base": 0.06, "tvoc_base": 0.30, "source": None},
+    "vehicle":      {"pm25_base": 160, "co_base": 4.5, "no2_base": 0.14, "tvoc_base": 0.50, "source": "vehicle"},
+    "industrial":   {"pm25_base": 220, "co_base": 6.0, "no2_base": 0.22, "tvoc_base": 1.00, "source": "industrial"},
+    "construction": {"pm25_base": 250, "co_base": 3.5, "no2_base": 0.10, "tvoc_base": 1.40, "source": "construction"},
+    "biomass":      {"pm25_base": 200, "co_base": 7.5, "no2_base": 0.12, "tvoc_base": 1.20, "source": "biomass"},
+    "mixed":        {"pm25_base": 140, "co_base": 3.8, "no2_base": 0.10, "tvoc_base": 0.60, "source": "vehicle"},
 }
 
 

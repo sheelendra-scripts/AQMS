@@ -1,9 +1,12 @@
 """ML Prediction Service — loads trained models and provides inference."""
 import os
 import math
+import logging
 import joblib
 import numpy as np
 from datetime import datetime, timezone
+
+logger = logging.getLogger("aqms.ml")
 
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "models")
 
@@ -14,17 +17,25 @@ _anomaly_model = None
 
 def _load_models():
     global _source_model, _forecast_model, _anomaly_model
+    logger.info(f"Loading ML models from {MODELS_DIR}")
+    logger.info(f"Models dir exists: {os.path.exists(MODELS_DIR)}, files: {os.listdir(MODELS_DIR) if os.path.exists(MODELS_DIR) else 'N/A'}")
     try:
         _source_model = joblib.load(os.path.join(MODELS_DIR, "source_classifier.pkl"))
-    except Exception:
+        logger.info("✅ Source classifier loaded")
+    except Exception as e:
+        logger.error(f"❌ Source classifier failed: {e}")
         _source_model = None
     try:
         _forecast_model = joblib.load(os.path.join(MODELS_DIR, "aqi_forecaster.pkl"))
-    except Exception:
+        logger.info("✅ AQI forecaster loaded")
+    except Exception as e:
+        logger.error(f"❌ AQI forecaster failed: {e}")
         _forecast_model = None
     try:
         _anomaly_model = joblib.load(os.path.join(MODELS_DIR, "anomaly_detector.pkl"))
-    except Exception:
+        logger.info("✅ Anomaly detector loaded")
+    except Exception as e:
+        logger.error(f"❌ Anomaly detector failed: {e}")
         _anomaly_model = None
 
 
@@ -32,11 +43,32 @@ def _load_models():
 _load_models()
 
 
+def _rule_based_source(pm25: float, co: float, no2: float, tvoc: float) -> dict:
+    """Fallback rule-based source detection when ML model is unavailable."""
+    pm25_co = pm25 / max(co, 0.01)
+    tvoc_no2 = tvoc / max(no2, 0.001)
+
+    if co > 5.0 and tvoc > 0.8:
+        src, conf = "biomass", 0.78
+    elif no2 > 0.15 and co > 4.0:
+        src, conf = "industrial", 0.75
+    elif tvoc > 1.0 and pm25 > 180:
+        src, conf = "construction", 0.72
+    elif pm25_co > 30 and no2 > 0.08:
+        src, conf = "vehicle", 0.80
+    elif co > 3.0:
+        src, conf = "vehicle", 0.68
+    else:
+        src, conf = "vehicle", 0.55
+
+    return {"source": src, "confidence": conf, "probabilities": {src: conf}}
+
+
 def detect_source(pm25: float, co: float, no2: float, tvoc: float,
                   temperature: float, humidity: float, hour: float = None) -> dict:
     """Classify the pollution source from sensor readings."""
     if _source_model is None:
-        return {"source": "unknown", "confidence": 0, "probabilities": {}}
+        return _rule_based_source(pm25, co, no2, tvoc)
 
     if hour is None:
         hour = datetime.now(timezone.utc).hour + datetime.now(timezone.utc).minute / 60.0
