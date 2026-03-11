@@ -4,7 +4,7 @@ import math
 import logging
 import joblib
 import numpy as np
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger("aqms.ml")
 
@@ -136,9 +136,6 @@ def detect_source(pm25: float, co: float, no2: float, tvoc: float,
 
 def forecast_aqi(current_reading: dict, horizon_hours: int = 24) -> list:
     """Forecast AQI for the next N hours using XGBoost."""
-    if _forecast_model is None:
-        return []
-
     now = datetime.now(timezone.utc)
     current_hour = now.hour + now.minute / 60.0
     day_of_week = now.weekday()
@@ -151,6 +148,34 @@ def forecast_aqi(current_reading: dict, horizon_hours: int = 24) -> list:
     temp = current_reading.get("temperature", 30)
     humidity = current_reading.get("humidity", 50)
 
+    if _forecast_model is None:
+        # Rule-based diurnal forecast when model unavailable
+        forecasts = []
+        for h in range(1, horizon_hours + 1):
+            future_hour = (current_hour + h) % 24
+            morning = math.exp(-((future_hour - 8) ** 2) / 8)
+            evening = math.exp(-((future_hour - 18) ** 2) / 8)
+            traffic = 0.4 + 0.6 * (morning + evening)
+            current_traffic = 0.4 + 0.6 * (
+                math.exp(-((current_hour - 8) ** 2) / 8) + math.exp(-((current_hour - 18) ** 2) / 8))
+            ratio = traffic / max(0.4, current_traffic)
+            noise = (hash(str(h)) % 20 - 10)  # Deterministic small variation
+            pred_aqi = int(max(20, min(500, current_aqi * ratio + noise)))
+
+            if pred_aqi <= 50: cat, color = "Good", "#22c55e"
+            elif pred_aqi <= 100: cat, color = "Satisfactory", "#84cc16"
+            elif pred_aqi <= 200: cat, color = "Moderate", "#eab308"
+            elif pred_aqi <= 300: cat, color = "Poor", "#f97316"
+            elif pred_aqi <= 400: cat, color = "Very Poor", "#ef4444"
+            else: cat, color = "Severe", "#991b1b"
+
+            future_ts = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=h)
+            forecasts.append({
+                "hour_offset": h, "timestamp": future_ts.isoformat().replace("+00:00", "Z"),
+                "predicted_aqi": pred_aqi, "category": cat, "color": color,
+            })
+        return forecasts
+
     # Recent AQI history (simulate lags from current)
     aqi_lag_1h = current_aqi
     aqi_lag_3h = current_aqi * 0.95
@@ -158,6 +183,15 @@ def forecast_aqi(current_reading: dict, horizon_hours: int = 24) -> list:
 
     forecasts = []
     model = _forecast_model["model"]
+
+    # Get model's baseline prediction for current conditions to compute offset
+    current_traffic = 0.4 + 0.6 * (
+        math.exp(-((current_hour - 8) ** 2) / 8) + math.exp(-((current_hour - 18) ** 2) / 8))
+    X_now = np.array([[current_hour, day_of_week, pm25, co, no2, tvoc,
+                        temp, humidity, current_aqi, current_aqi * 0.95, current_aqi * 0.90]])
+    model_baseline = float(model.predict(X_now)[0])
+    # Offset to anchor predictions relative to actual current AQI
+    aqi_offset = current_aqi - model_baseline
 
     for h in range(1, horizon_hours + 1):
         future_hour = (current_hour + h) % 24
@@ -170,13 +204,16 @@ def forecast_aqi(current_reading: dict, horizon_hours: int = 24) -> list:
 
         f_temp = 28 + 5 * math.sin((future_hour - 14) * math.pi / 12)
         f_humidity = 55 - 15 * math.sin((future_hour - 14) * math.pi / 12)
-        f_pm25 = pm25 * traffic / max(0.4, 0.4 + 0.6 * (
-            math.exp(-((current_hour - 8) ** 2) / 8) + math.exp(-((current_hour - 18) ** 2) / 8)))
+        f_pm25 = pm25 * traffic / max(0.4, current_traffic)
 
         X = np.array([[future_hour, future_dow, f_pm25, co * traffic, no2 * traffic,
                         tvoc * traffic, f_temp, f_humidity, aqi_lag_1h, aqi_lag_3h, aqi_lag_6h]])
 
-        pred_aqi = int(max(10, min(500, model.predict(X)[0])))
+        raw_pred = float(model.predict(X)[0])
+        # Apply offset so predictions stay anchored to actual AQI level
+        # Blend: offset decays slightly over time to allow natural trend
+        blend = max(0.3, 1.0 - h * 0.01)
+        pred_aqi = int(max(10, min(500, raw_pred + aqi_offset * blend)))
 
         # Determine category
         if pred_aqi <= 50:
