@@ -6,34 +6,53 @@ import { getLiveData, getHistoryData, createWebSocket } from '../services/api';
  * Fetches live sensor data — tries WebSocket first, then polls every 30s
  */
 export function useLiveData() {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(() => {
+    // Restore cached data from sessionStorage for instant display
+    try {
+      const cached = sessionStorage.getItem('aqms_last_reading');
+      return cached ? JSON.parse(cached) : null;
+    } catch { return null; }
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [loadingStep, setLoadingStep] = useState('init');
+  const dataRef = useRef(null);
+  dataRef.current = data;
 
   const fetchData = useCallback(async () => {
     try {
+      setLoadingStep('fetching');
       const result = await getLiveData();
       if (result) {
         setData(result);
         setError(null);
+        // Cache for instant restore on next visit
+        try { sessionStorage.setItem('aqms_last_reading', JSON.stringify(result)); } catch {}
       }
+      // If result is null, keep previous data (don't reset to null)
     } catch (e) {
       setError(e.message);
+      // Keep previous data on error — never flash zero
     } finally {
       setLoading(false);
+      setLoadingStep('done');
     }
   }, []);
 
   useEffect(() => {
+    setLoadingStep('connecting');
     fetchData();
 
     // Try WebSocket
     let cleanup;
     try {
       cleanup = createWebSocket((wsData) => {
-        setData(wsData);
-        setLoading(false);
-        setError(null);
+        if (wsData && wsData.aqi != null) {
+          setData(wsData);
+          setLoading(false);
+          setError(null);
+          try { sessionStorage.setItem('aqms_last_reading', JSON.stringify(wsData)); } catch {}
+        }
       });
     } catch {
       // WebSocket not available, use polling
@@ -48,7 +67,7 @@ export function useLiveData() {
     };
   }, [fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
+  return { data, loading, error, loadingStep, refetch: fetchData };
 }
 
 /**

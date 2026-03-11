@@ -16,29 +16,66 @@ const fadeUp = {
   }),
 };
 
+const LOADING_STEPS = [
+  { key: 'init', label: 'Initializing system...', pct: 10 },
+  { key: 'connecting', label: 'Connecting to sensor network...', pct: 30 },
+  { key: 'fetching', label: 'Fetching live readings...', pct: 60 },
+  { key: 'processing', label: 'Processing AQI data...', pct: 85 },
+  { key: 'done', label: 'Ready', pct: 100 },
+];
+
+function LoadingScreen({ step }) {
+  const current = LOADING_STEPS.find(s => s.key === step) || LOADING_STEPS[0];
+  return (
+    <div className="loading-screen" style={{ position: 'relative', minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
+      <div className="loading-spinner" />
+      <div style={{ textAlign: 'center' }}>
+        <div className="loading-text" style={{ marginBottom: 12 }}>{current.label}</div>
+        <div style={{ width: 220, height: 6, background: 'var(--earth-100)', borderRadius: 3, overflow: 'hidden', margin: '0 auto' }}>
+          <div style={{
+            width: `${current.pct}%`, height: '100%',
+            background: 'linear-gradient(90deg, #10b981, #059669)',
+            borderRadius: 3, transition: 'width 0.6s ease',
+          }} />
+        </div>
+        <div style={{ fontSize: '0.7rem', color: 'var(--earth-400)', marginTop: 8 }}>
+          Polling ThingSpeak IoT Cloud + ML Pipeline
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
-  const { data, loading, refetch } = useLiveData();
+  const { data, loading, loadingStep, refetch } = useLiveData();
   const { data: history, loading: historyLoading } = useHistoryData(300);
   const timeAgo = useTimeAgo(data?.timestamp);
   const [mlSource, setMlSource] = useState(null);
   const [mlForecast, setMlForecast] = useState(null);
 
-  // Pre-seed from live data immediately so UI doesn't show "Loading..."
+  // Pre-seed ML source from live data or run client-side detection
   useEffect(() => {
-    if (data?.source_detected && data.source_detected !== 'unknown' && !mlSource) {
-      setMlSource({ source: data.source_detected, confidence: null, probabilities: {} });
+    if (data && !mlSource) {
+      if (data.source_detected && data.source_detected !== 'unknown') {
+        // Use source with client-side probabilities
+        const local = detectSourceLocal(data.pm25 || 0, data.co || 0, data.no2 || 0, data.tvoc || 0);
+        setMlSource(local);
+      } else {
+        setMlSource(detectSourceLocal(data.pm25 || 0, data.co || 0, data.no2 || 0, data.tvoc || 0));
+      }
     }
   }, [data]);
 
   useEffect(() => {
+    if (!data) return;
     const fetchSource = () => {
       fetchMLSource()
-        .then(res => { if (res && res.source) setMlSource(res); })
+        .then(res => {
+          if (res && res.source && !res.error) setMlSource(res);
+          else if (data) setMlSource(detectSourceLocal(data.pm25 || 0, data.co || 0, data.no2 || 0, data.tvoc || 0));
+        })
         .catch(() => {
-          // Client-side fallback source detection
-          if (data) {
-            setMlSource(detectSourceLocal(data.pm25 || 0, data.co || 0, data.no2 || 0, data.tvoc || 0));
-          }
+          if (data) setMlSource(detectSourceLocal(data.pm25 || 0, data.co || 0, data.no2 || 0, data.tvoc || 0));
         });
     };
     fetchSource();
@@ -51,12 +88,7 @@ export default function Dashboard() {
   }, [data]);
 
   if (loading && !data) {
-    return (
-      <div className="loading-screen" style={{ position: 'relative', minHeight: '60vh' }}>
-        <div className="loading-spinner" />
-        <div className="loading-text">Connecting to sensors...</div>
-      </div>
-    );
+    return <LoadingScreen step={loadingStep} />;
   }
 
   return (

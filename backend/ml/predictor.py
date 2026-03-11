@@ -48,20 +48,61 @@ def _rule_based_source(pm25: float, co: float, no2: float, tvoc: float) -> dict:
     pm25_co = pm25 / max(co, 0.01)
     tvoc_no2 = tvoc / max(no2, 0.001)
 
-    if co > 5.0 and tvoc > 0.8:
-        src, conf = "biomass", 0.78
-    elif no2 > 0.15 and co > 4.0:
-        src, conf = "industrial", 0.75
-    elif tvoc > 1.0 and pm25 > 180:
-        src, conf = "construction", 0.72
-    elif pm25_co > 30 and no2 > 0.08:
-        src, conf = "vehicle", 0.80
-    elif co > 3.0:
-        src, conf = "vehicle", 0.68
-    else:
-        src, conf = "vehicle", 0.55
+    # Score each source based on sensor signatures
+    scores = {
+        "vehicle": 0.0,
+        "industrial": 0.0,
+        "construction": 0.0,
+        "biomass": 0.0,
+        "mixed": 0.0,
+    }
 
-    return {"source": src, "confidence": conf, "probabilities": {src: conf}}
+    # Vehicle indicators: high pm25/co ratio, moderate no2
+    if pm25_co > 30 and no2 > 0.08:
+        scores["vehicle"] += 0.45
+    if pm25_co > 20:
+        scores["vehicle"] += 0.15
+    if co > 2.0 and co <= 5.0:
+        scores["vehicle"] += 0.10
+
+    # Industrial indicators: high no2 + co
+    if no2 > 0.15 and co > 4.0:
+        scores["industrial"] += 0.45
+    if no2 > 0.10:
+        scores["industrial"] += 0.15
+    if tvoc > 0.5 and no2 > 0.12:
+        scores["industrial"] += 0.10
+
+    # Biomass indicators: high co + tvoc
+    if co > 5.0 and tvoc > 0.8:
+        scores["biomass"] += 0.45
+    if co > 4.0:
+        scores["biomass"] += 0.10
+    if tvoc > 0.6:
+        scores["biomass"] += 0.10
+
+    # Construction indicators: high tvoc + pm25
+    if tvoc > 1.0 and pm25 > 180:
+        scores["construction"] += 0.45
+    if pm25 > 150:
+        scores["construction"] += 0.10
+    if tvoc > 0.8:
+        scores["construction"] += 0.05
+
+    # Mixed: baseline
+    scores["mixed"] = 0.05
+
+    # Normalize to probabilities
+    total = sum(scores.values())
+    if total == 0:
+        total = 1.0
+    probabilities = {k: round(v / total, 3) for k, v in scores.items()}
+
+    # Pick top source
+    src = max(probabilities, key=probabilities.get)
+    conf = probabilities[src]
+
+    return {"source": src, "confidence": conf, "probabilities": probabilities}
 
 
 def detect_source(pm25: float, co: float, no2: float, tvoc: float,

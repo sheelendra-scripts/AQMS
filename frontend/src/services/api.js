@@ -3,7 +3,7 @@ import axios from 'axios';
 
 // Auto-detect: use VITE_API_URL env var, or fallback to localhost for dev
 const API_BASE = import.meta.env.VITE_API_URL
-  || (window.location.hostname === 'localhost' ? 'http://localhost:8000' : '');
+  || (window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://aqms-backend-ue5x.onrender.com');
 const THINGSPEAK_CHANNEL = '2697383';
 const THINGSPEAK_API_KEY = 'RAYZJW1K4FBNIVP6';
 const THINGSPEAK_BASE = `https://api.thingspeak.com/channels/${THINGSPEAK_CHANNEL}`;
@@ -34,13 +34,35 @@ export const clearAlerts      = ()                   => api.delete('/api/alerts'
 
 // ─── ML Predictions API ──────────────────────────────// Client-side rule-based source detection fallback
 export function detectSourceLocal(pm25, co, no2, tvoc) {
-  let src = 'vehicle', conf = 0.55;
-  if (co > 5.0 && tvoc > 0.8) { src = 'biomass'; conf = 0.78; }
-  else if (no2 > 0.15 && co > 4.0) { src = 'industrial'; conf = 0.75; }
-  else if (tvoc > 1.0 && pm25 > 180) { src = 'construction'; conf = 0.72; }
-  else if ((pm25 / Math.max(co, 0.01)) > 30 && no2 > 0.08) { src = 'vehicle'; conf = 0.80; }
-  else if (co > 3.0) { src = 'vehicle'; conf = 0.68; }
-  return { source: src, confidence: conf, probabilities: { [src]: conf } };
+  const pmCo = pm25 / Math.max(co, 0.01);
+  const scores = { vehicle: 0, industrial: 0, construction: 0, biomass: 0, mixed: 0.05 };
+
+  // Vehicle
+  if (pmCo > 30 && no2 > 0.08) scores.vehicle += 0.45;
+  if (pmCo > 20) scores.vehicle += 0.15;
+  if (co > 2.0 && co <= 5.0) scores.vehicle += 0.10;
+
+  // Industrial
+  if (no2 > 0.15 && co > 4.0) scores.industrial += 0.45;
+  if (no2 > 0.10) scores.industrial += 0.15;
+  if (tvoc > 0.5 && no2 > 0.12) scores.industrial += 0.10;
+
+  // Biomass
+  if (co > 5.0 && tvoc > 0.8) scores.biomass += 0.45;
+  if (co > 4.0) scores.biomass += 0.10;
+  if (tvoc > 0.6) scores.biomass += 0.10;
+
+  // Construction
+  if (tvoc > 1.0 && pm25 > 180) scores.construction += 0.45;
+  if (pm25 > 150) scores.construction += 0.10;
+  if (tvoc > 0.8) scores.construction += 0.05;
+
+  const total = Object.values(scores).reduce((s, v) => s + v, 0) || 1;
+  const probabilities = {};
+  for (const k of Object.keys(scores)) probabilities[k] = Math.round((scores[k] / total) * 1000) / 1000;
+
+  const src = Object.entries(probabilities).sort((a, b) => b[1] - a[1])[0][0];
+  return { source: src, confidence: probabilities[src], probabilities };
 }
 export const fetchMLSource = () => api.get('/api/ml/source').then(r => r.data);
 export const fetchMLForecast = (horizon = 24) => api.get(`/api/ml/forecast?horizon=${horizon}`).then(r => r.data);
