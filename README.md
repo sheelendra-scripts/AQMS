@@ -5,8 +5,8 @@
 
 **Team MechaMinds**
 
-[![Live Demo](https://img.shields.io/badge/Frontend-Vercel-black)](https://aqms-mechanminds.vercel.app)
-[![Backend](https://img.shields.io/badge/Backend-Render-blue)](https://aqms-backend.onrender.com)
+[![Live Demo](https://img.shields.io/badge/Frontend-Vercel-black)](https://aqms-livid.vercel.app)
+[![Backend](https://img.shields.io/badge/Backend-Render-blue)](https://aqms-backend-ue5x.onrender.com)
 
 ---
 
@@ -202,8 +202,8 @@ VITE_API_URL=https://your-backend.onrender.com
 
 | Component | Platform | Config |
 |---|---|---|
-| Frontend | Vercel | Auto-deploy on push, SPA rewrites |
-| Backend | Render | render.yaml, Python 3.9 |
+| Frontend | Vercel | https://aqms-livid.vercel.app |
+| Backend | Render | https://aqms-backend-ue5x.onrender.com |
 | Source | GitHub | github.com/sheelendra-scripts/AQMS |
 
 ---
