@@ -3,7 +3,7 @@
 > **IoT-Enabled Real-Time Air Quality Intelligence Platform**
 > Ward-Level Monitoring | ML Source Detection | Smart Alerts | Policy Recommendations
 
-**Team MechaMinds** | Smart India Hackathon 2024
+**Team MechaMinds**
 
 [![Live Demo](https://img.shields.io/badge/Frontend-Vercel-black)](https://aqms-mechanminds.vercel.app)
 [![Backend](https://img.shields.io/badge/Backend-Render-blue)](https://aqms-backend.onrender.com)
@@ -252,7 +252,7 @@ VITE_API_URL=https://your-backend.onrender.com
 
 ## Team MechaMinds
 
-Smart India Hackathon 2024 | Air Quality Monitoring & Management
+Air Quality Monitoring & Management
 
 ---
 

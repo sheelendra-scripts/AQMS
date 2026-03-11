@@ -2,7 +2,7 @@
 """
 AQMS Project Report - PDF Generator
 Generates a comprehensive project documentation report.
-Team: MechaMinds | Hackathon: Smart India Hackathon 2024
+Team: MechaMinds
 """
 
 import os
@@ -58,7 +58,7 @@ class AQMSReport(FPDF):
         self.set_y(-15)
         self.set_font('Helvetica', 'I', 7)
         self.set_text_color(*EARTH_500)
-        self.cell(0, 10, 'AQMS Project Report - MechaMinds | Smart India Hackathon 2024', 0, 0, 'C')
+        self.cell(0, 10, 'AQMS Project Report - MechaMinds', 0, 0, 'C')
 
     def chapter_title(self, num, title):
         """Add a chapter title with styling."""
@@ -211,7 +211,7 @@ def build_report():
 
     pdf.set_font('Helvetica', '', 10)
     pdf.set_text_color(*EARTH_700)
-    pdf.cell(0, 7, 'Smart India Hackathon 2024', 0, 1, 'C')
+    pdf.cell(0, 7, 'Air Quality Monitoring System', 0, 1, 'C')
     pdf.cell(0, 7, 'Problem Statement: Air Quality Monitoring & Management', 0, 1, 'C')
 
     pdf.ln(10)
@@ -304,7 +304,7 @@ def build_report():
     pdf.body_text(
         'The Air Quality Monitoring System (AQMS) is a comprehensive IoT-enabled platform designed '
         'to monitor, analyze, and manage air quality across all 250 municipal wards of Delhi in real-time. '
-        'Developed by Team MechaMinds for the Smart India Hackathon 2024, the system addresses the critical '
+        'Developed by Team MechaMinds, the system addresses the critical '
         'challenge of urban air pollution through an integrated hardware-software solution.'
     )
     pdf.body_text(
