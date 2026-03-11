@@ -245,7 +245,8 @@ VITE_API_URL=https://your-backend.onrender.com
 
 ## Documentation
 
-- **Project Report:** [AQMS_Project_Report.pdf](AQMS_Project_Report.pdf) (27 pages, comprehensive)
+- **Hardware Report:** [HARDWARE REPORT.pdf](HARDWARE%20REPORT.pdf) — Circuit design, sensor specs, ESP32 node, PCB layout
+- **Hardware + Software Report:** [HARDWARE + SOFTWARE REPORT.pdf](HARDWARE%20+%20SOFTWARE%20REPORT.pdf) — Complete system documentation covering hardware, backend, ML models, frontend, and deployment
 - **API Docs:** FastAPI auto-generated at `/docs` (Swagger UI)
 
 ---
