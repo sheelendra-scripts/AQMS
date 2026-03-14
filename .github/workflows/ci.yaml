@@ -50,6 +50,7 @@ jobs:
           script: |
             git clone https://github.com/${{ github.repository }} || echo "NOTHING TO CLONE..."
             cd AQMS
+            git checkout rajat
             docker compose pull
             docker compose up -d
 
