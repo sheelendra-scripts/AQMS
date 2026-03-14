@@ -2,15 +2,15 @@ services:
   backend:
     image: rajatrulaniya/hackdata-backend:latest
     ports:
-      - 8000:8000
+      - "127.0.0.1:8000:8000"
 
   frontend:
     image: rajatrulaniya/hackdata-frontend:latest
     environment:
       BACKEND_HOST: hackdata.rajatrulaniya.com
-      BACKEND_PORT: 8000
+      BACKEND_PORT: 443
     ports:
-      - 80:80
+      - "127.0.0.1:3000:80"
     
     depends_on:
       - backend
