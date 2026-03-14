@@ -2,7 +2,7 @@ name: HACKDATA CICD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [ rajat ]
 
 jobs:
   BUILD_IMAGES:
@@ -23,13 +23,13 @@ jobs:
         with:
           context: "{{defaultContext}}:frontend"
           push: true
-          tags: user/app:latest
+          tags: rajatrulaniya/hackdata-frontend:"${{ github.run_number }}"
 
       - name: Build and Push Backend image
         uses: docker/build-push-action@v6
         with:
           context: "{{defaultContext}}:backend"
           push: true
-          tags: user/app:latest
+          tags: rajatrulaniya/hackdata-backend:"${{ github.run_number }}"
 
 
